@@ -103,6 +103,8 @@ static struct {
 };
 
 static AudioState glob_audio_state;
+int aud_thread_flag = 0;
+
 
 const struct mixeng_volume nominal_volume = {
     .mute = 0,
@@ -120,6 +122,11 @@ const struct mixeng_volume nominal_volume = {
 #else
 static void audio_print_options (const char *prefix,
                                  struct audio_option *opt);
+
+void* audio_thread(void* opaque);
+static void audio_run_out2 (AudioState *s);
+static void audio_run_in (AudioState *s);
+static void audio_run_capture (AudioState *s);
 
 int audio_bug (const char *funcname, int cond)
 {
@@ -1121,13 +1128,41 @@ static int audio_is_timer_needed (void)
     return 0;
 }
 
+void* audio_thread(void* opaque)
+{
+    AudioState *s = &glob_audio_state;
+    while(1)
+    {
+        if (aud_thread_flag == 0)
+            break;
+        audio_run_out2(s);
+        audio_run_in(s);
+        audio_run_capture(s);
+    }
+    return (void*)NULL;
+}
+
 static void audio_reset_timer (AudioState *s)
 {
+    pthread_t thread_id;
+    pthread_attr_t attr;
+
     if (audio_is_timer_needed ()) {
-        qemu_mod_timer (s->ts, qemu_get_clock_ns (vm_clock) + 1);
+        qemu_mod_timer (s->ts, qemu_get_clock_ns (vm_clock) + 100000000); //1ns -> 100000000ns(100ms)
+        if(aud_thread_flag == 0)
+        {
+            aud_thread_flag = 1;
+            pthread_attr_init(&attr);
+            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+            pthread_create(&thread_id, &attr, audio_thread, NULL);
+            pthread_attr_destroy(&attr);
+        }
     }
     else {
         qemu_del_timer (s->ts);
+        // stop the audio thread
+        if(aud_thread_flag == 1)
+            aud_thread_flag = 0;
     }
 }
 
@@ -1359,11 +1394,9 @@ static void audio_capture_mix_and_clear (HWVoiceOut *hw, int rpos, int samples)
 static void audio_run_out (AudioState *s)
 {
     HWVoiceOut *hw = NULL;
-    SWVoiceOut *sw;
 
     while ((hw = audio_pcm_hw_find_any_enabled_out (hw))) {
-        int played;
-        int live, free, nb_live, cleanup_required, prev_rpos;
+        int live,  nb_live;
 
         live = audio_pcm_hw_get_live_out (hw, &nb_live);
         if (!nb_live) {
@@ -1389,16 +1422,34 @@ static void audio_run_out (AudioState *s)
             }
             continue;
         }
+        continue;
+    }
+}
+
+static void audio_run_out2 (AudioState *s)
+{
+    HWVoiceOut *hw = NULL;
+    SWVoiceOut *sw;
+
+    while ((hw = audio_pcm_hw_find_any_enabled_out (hw))) {
+        int played;
+        int live, free, nb_live, cleanup_required, prev_rpos;
+
+        live = audio_pcm_hw_get_live_out (hw, &nb_live);
+        if (!nb_live) {
+            live = 0;
+        }
+
+        if (audio_bug (AUDIO_FUNC, live < 0 || live > hw->samples)) {
+            dolog ("live=%d hw->samples=%d\n", live, hw->samples);
+            continue;
+        }
+
+        if (hw->pending_disable && !nb_live) {
+            continue;
+        }
 
         if (!live) {
-            for (sw = hw->sw_head.lh_first; sw; sw = sw->entries.le_next) {
-                if (sw->active) {
-                    free = audio_get_free (sw);
-                    if (free > 0) {
-                        sw->callback.fn (sw->callback.opaque, free);
-                    }
-                }
-            }
             continue;
         }
 
