@@ -425,6 +425,13 @@ rom_link ../seabios/bios.bin bios.bin
 rom_link ../sgabios/sgabios.bin sgabios.bin
 %endif
 
+# for efi binaries
+install -m 0644 pc-bios/efi-e1000.rom    $RPM_BUILD_ROOT%{_datadir}/%{name}
+install -m 0644 pc-bios/efi-virtio.rom   $RPM_BUILD_ROOT%{_datadir}/%{name}
+install -m 0644 pc-bios/efi-pcnet.rom    $RPM_BUILD_ROOT%{_datadir}/%{name}
+install -m 0644 pc-bios/efi-rtl8139.rom  $RPM_BUILD_ROOT%{_datadir}/%{name}
+install -m 0644 pc-bios/efi-ne2k_pci.rom $RPM_BUILD_ROOT%{_datadir}/%{name}
+
 
 # For the qemu-guest-agent subpackage install the systemd
 # service and udev rules.
@@ -535,6 +542,11 @@ getent passwd qemu >/dev/null || \
 %{_datadir}/%{name}/pxe-pcnet.rom
 %{_datadir}/%{name}/pxe-rtl8139.rom
 %{_datadir}/%{name}/pxe-ne2k_pci.rom
+%{_datadir}/%{name}/efi-e1000.rom
+%{_datadir}/%{name}/efi-virtio.rom
+%{_datadir}/%{name}/efi-pcnet.rom
+%{_datadir}/%{name}/efi-rtl8139.rom
+%{_datadir}/%{name}/efi-ne2k_pci.rom
 %{_datadir}/%{name}/qemu-icon.bmp
 %config(noreplace) %{_sysconfdir}/qemu/target-x86_64.conf
 %ifarch %{ix86} x86_64
