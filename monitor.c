@@ -188,7 +188,7 @@ struct Monitor {
     int reset_seen;
     int flags;
     int suspend_cnt;
-    uint8_t outbuf[1024];
+    uint8_t outbuf[2048];
     int outbuf_index;
     ReadLineState *rs;
     MonitorControl *mc;
