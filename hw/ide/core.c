@@ -1262,7 +1262,11 @@ void ide_exec_cmd(IDEBus *bus, uint32_t val)
         lba48 = 1;
         /* fall through */
     case WIN_READ_NATIVE_MAX:
-	ide_cmd_lba48_transform(s, lba48);
+        /* Refuse if no sectors are addressable (e.g. medium not inserted) */
+        if (s->nb_sectors == 0)
+            goto abort_cmd;
+
+	    ide_cmd_lba48_transform(s, lba48);
         ide_set_sector(s, s->nb_sectors - 1);
         s->status = READY_STAT | SEEK_STAT;
         ide_set_irq(s->bus);
